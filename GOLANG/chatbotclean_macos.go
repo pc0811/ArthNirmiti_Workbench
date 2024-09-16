@@ -16,7 +16,7 @@ func main() {
 	start := time.Now()
 
 	// Open the Excel file
-	excelFileName := "/Users/padmchowdhary/Desktop/bot.xlsx"
+	excelFileName := "$FILEPATH"
 	fmt.Println("STARTED")
 	f, err := excelize.OpenFile(excelFileName)
 	if err != nil {
@@ -33,7 +33,7 @@ func main() {
 	}
 
 	// Create the CSV file
-	csvFileName := "/Users/padmchowdhary/Desktop/DETAILED.csv"
+	csvFileName := "$FILEPATH"
 	csvFile, err := os.Create(csvFileName)
 	if err != nil {
 		fmt.Println("Error creating CSV file:", err)
