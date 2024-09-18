@@ -4,20 +4,32 @@ import (
 	"encoding/csv"
 	"fmt"
 	"os"
+	"path/filepath"
 	"regexp"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/sqweek/dialog"
 	"github.com/xuri/excelize/v2"
 )
 
 func main() {
 	start := time.Now()
 
+	fmt.Println("PLEASE SELECT THE FILE")
+
 	// Open the Excel file
-	excelFileName := "$PATH"
-	fmt.Println("STARTED")
+	excelFileName, err := dialog.File().Filter("Excel files", "xlsx").Title("Select an Excel file").Load()
+	if err != nil {
+		fmt.Println("\nError selecting Excel file:", err)
+		return
+	}
+
+	fmt.Println("\nSelected File:", excelFileName)
+	fmt.Println("\nWELCOME TO ARTHNIRMITI")
+	fmt.Println("\nSTARTED THE DATA CLEANING PROCESS")
 	f, err := excelize.OpenFile(excelFileName)
 	if err != nil {
 		fmt.Println("Error opening Excel file:", err)
@@ -28,12 +40,14 @@ func main() {
 	sheetName := "Data"
 	rows, err := f.GetRows(sheetName)
 	if err != nil {
-		fmt.Println("Error getting rows from sheet:", err)
+		fmt.Println("\nError getting rows from sheet:", err)
 		return
 	}
-
+	currentTime := time.Now()
 	// Create the CSV file
-	csvFileName := "$PATH"
+	formattedTime := currentTime.Format("0502150106")
+	csvFileName := fmt.Sprintf("/Users/padmchowdhary/Desktop/BOTDATA_%s.csv", formattedTime)
+
 	csvFile, err := os.Create(csvFileName)
 	if err != nil {
 		fmt.Println("Error creating CSV file:", err)
@@ -60,15 +74,49 @@ func main() {
 		processChunk(rows[i:end], dataMap)
 	}
 
-	//writeMapToCSV(dataMap, writer)
+	writeMapToCSV(dataMap, writer)
 
 	// Process and write map data to CSV
-	processedDict := process_details(dataMap)
-	writeProcessedDictToCSV(processedDict, csvFileName)
+	//processedDict := process_details(dataMap)
+	//writeProcessedDictToCSV(processedDict, csvFileName)
 
 	// Print execution time
 	duration := time.Since(start)
 	fmt.Printf("Processing time: %v seconds\n", duration.Seconds())
+	fmt.Printf("FILE IS STORED ON THE DESKTOP NAMED BOTDATA_%s.csv", formattedTime)
+
+	desktopPath, err1 := getDesktopPath()
+	if err1 != nil {
+		fmt.Println("ERROR MOVING THE FILE TO BACKUP FOLDER")
+	}
+	dateFolder := filepath.Join(desktopPath, formattedTime)
+	err = os.MkdirAll(dateFolder, os.ModePerm)
+	if err != nil {
+		fmt.Println("Error creating date folder:", err)
+		return
+	}
+
+	// Move the selected Excel file and the processed CSV file to the new folder
+	moveFile := func(sourcePath, destDir string) error {
+		destPath := filepath.Join(destDir, filepath.Base(sourcePath))
+		return os.Rename(sourcePath, destPath)
+	}
+
+	err = moveFile(excelFileName, dateFolder)
+	if err != nil {
+		fmt.Println("Error moving Excel file:", err)
+		return
+	}
+
+	err = moveFile(csvFileName, dateFolder)
+	if err != nil {
+		fmt.Println("Error moving CSV file:", err)
+		return
+	}
+
+	fmt.Println("Files have been moved to:", dateFolder)
+
+	fmt.Println("\n \nTHANK YOU , HAVE A NICE DAY!")
 }
 
 // processChunk processes a chunk of rows and updates the dataMap
@@ -102,6 +150,19 @@ func processChunk(rows [][]string, dataMap map[string][]string) {
 // processemail_Swayam processes email data and updates the processedDict
 func process_details(dataMap map[string][]string) map[string]map[string]string {
 	processedDict := make(map[string]map[string]string)
+	nameRegex := `(?i)^[A-Z][a-z]*(?:\.[a-z]+)*(?: (?:[a-z]+(?:\.[a-z]+)*)?){0,3}$`
+	emailRegex := `(?i)^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$`
+	reName, errName := regexp.Compile(nameRegex)
+	if errName != nil {
+		fmt.Println("Error compiling name regex:", errName)
+		return processedDict
+	}
+
+	reEmail, errEmail := regexp.Compile(emailRegex)
+	if errEmail != nil {
+		fmt.Println("Error compiling email regex:", errEmail)
+		return processedDict
+	}
 
 	for key, values := range dataMap {
 		if _, exists := processedDict[key]; !exists {
@@ -183,14 +244,35 @@ func process_details(dataMap map[string][]string) map[string]map[string]string {
 			value = strings.TrimSpace(value)
 
 			if strings.Contains(value, "(Please enter your full name)") || strings.Contains(value, "Let's Start With Your Name!â†²(Please Enter Your Full Name)") || strings.Contains(value, "Let's Start With Your Name!") || strings.Contains(value, "Let's Start With Your Name!â†²") {
-				indexofname = j
-				indexFound2 = true
+				if j+1 < len(values) && reName.MatchString(values[j+1]) && isIrrelevantName(strings.TrimSpace(values[j+1])) == false {
+					indexFound2 = true
+					indexofname = j
+					processedDict[key]["NAME"] = values[j+1]
+
+				}
+			} else if j+1 < len(values) && reName.MatchString(value) && isIrrelevantName(strings.TrimSpace(values[j+1])) == false {
+				// If regex matches, use the value
+				processedDict[key]["NAME"] = value
+
 			}
 
 			if strings.Contains(value, "Please enter your email id") {
 				indexofemail = j
 				indexFound1 = true
+			} else if reEmail.MatchString(value) {
+				// If regex matches, use the value
+				processedDict[key]["Email"] = value
+				processedDict[key]["VALID EMAIL"] = "YES"
+				for _, value := range values {
+					value = strings.TrimSpace(value)
+					if strings.Contains(value, "you've unlocked exclusive access to Swayam Plus!") {
+						processedDict[key]["SWAYAM ACCESS"] = "YES"
+
+					}
+				}
+				//indexFound1 = true
 			}
+
 		}
 
 		// Update PAN and BANK statuses
@@ -299,4 +381,37 @@ func CleanPhoneNumber(phoneNumber string) string {
 	}
 
 	return phoneNumber
+}
+func getDesktopPath() (string, error) {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+
+	var desktopDir string
+	switch runtime.GOOS {
+	case "darwin": // macOS
+		desktopDir = filepath.Join(homeDir, "Desktop")
+	case "windows":
+		desktopDir = filepath.Join(homeDir, "Desktop")
+	case "linux":
+		desktopDir = filepath.Join(homeDir, "Desktop")
+	default:
+		return "", fmt.Errorf("unsupported operating system: %s", runtime.GOOS)
+	}
+
+	return desktopDir, nil
+}
+
+func isIrrelevantName(name string) bool {
+	irrelevantNames := []string{
+		"INTERACTIVE", "hi", "Hi", "Thanks", "Ok", "ok", "Yes", "No", "certificate", "Certificate",
+	}
+
+	for _, irrelevant := range irrelevantNames {
+		if strings.Contains(name, irrelevant) {
+			return true
+		}
+	}
+	return false
 }
