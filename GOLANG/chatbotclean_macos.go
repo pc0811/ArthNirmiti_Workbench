@@ -16,8 +16,6 @@ import (
 )
 
 func main() {
-	start := time.Now()
-
 	fmt.Println("PLEASE SELECT THE FILE")
 
 	// Open the Excel file
@@ -28,6 +26,7 @@ func main() {
 	}
 
 	fmt.Println("\nSelected File:", excelFileName)
+	start := time.Now()
 	fmt.Println("\nWELCOME TO ARTHNIRMITI")
 	fmt.Println("\nSTARTED THE DATA CLEANING PROCESS")
 	f, err := excelize.OpenFile(excelFileName)
@@ -35,8 +34,10 @@ func main() {
 		fmt.Println("Error opening Excel file:", err)
 		return
 	}
+	done := make(chan bool)
 
-	// Get the sheet named "Data"
+	go loadingEffect(done)
+
 	sheetName := "Data"
 	rows, err := f.GetRows(sheetName)
 	if err != nil {
@@ -44,11 +45,11 @@ func main() {
 		return
 	}
 	currentTime := time.Now()
-	// Create the CSV file
+
 	formattedTime := currentTime.Format("0502150106")
 	desktopPath1, err1 := getDesktopPath()
 	if err1 != nil {
-		fmt.Println("ERROR MOVING THE FILE TO BACKUP FOLDER")
+		fmt.Println("CANT GET DESKTOP PATH")
 	}
 	csvFileName := fmt.Sprintf(filepath.Join(desktopPath1, "BOTDATA_%s.csv"), formattedTime)
 
@@ -59,17 +60,13 @@ func main() {
 	}
 	defer csvFile.Close()
 
-	// Create a CSV writer
 	writer := csv.NewWriter(csvFile)
 	defer writer.Flush()
 
-	// Initialize a map to store the data
 	dataMap := make(map[string][]string)
 
-	// Define chunk size (number of rows to process at a time)
-	chunkSize := 10000 // Adjust this based on memory constraints
+	chunkSize := 10000
 
-	// Process rows in chunks
 	for i := 0; i < len(rows); i += chunkSize {
 		end := i + chunkSize
 		if end > len(rows) {
@@ -78,7 +75,7 @@ func main() {
 		processChunk(rows[i:end], dataMap)
 	}
 
-	//writeMapToCSV(dataMap, writer)
+	//writeMapToCSV(dataMap, writer)   : Uncomment this to test the data , how we are getting the Collated data
 
 	// Process and write map data to CSV
 	processedDict := processDetails(dataMap)
@@ -88,6 +85,7 @@ func main() {
 	duration := time.Since(start)
 	fmt.Printf("Processing time: %v seconds\n", duration.Seconds())
 	fmt.Printf("FILE IS STORED ON THE DESKTOP NAMED BOTDATA_%s.csv", formattedTime)
+	done <- true
 
 	desktopPath, err1 := getDesktopPath()
 	if err1 != nil {
@@ -100,7 +98,6 @@ func main() {
 		return
 	}
 
-	// Move the selected Excel file and the processed CSV file to the new folder
 	moveFile := func(sourcePath, destDir string) error {
 		destPath := filepath.Join(destDir, filepath.Base(sourcePath))
 		return os.Rename(sourcePath, destPath)
@@ -127,10 +124,9 @@ func main() {
 func processChunk(rows [][]string, dataMap map[string][]string) {
 	for _, row := range rows {
 		if len(row) < 21 {
-			continue // Skip rows that don't have enough columns
+			continue
 		}
 
-		// Get the key from column G (index 6)
 		a1 := CleanPhoneNumber(row[6])
 		a2 := CleanPhoneNumber(row[7])
 		var key string
@@ -140,24 +136,19 @@ func processChunk(rows [][]string, dataMap map[string][]string) {
 			key = a1
 		}
 
-		// Get the value from column U (index 20)
 		value := row[20]
 		timestamp := row[19]
 
 		if key != "" {
-			// Initialize or update the dataMap entry for the key
 			if _, exists := dataMap[key]; !exists {
-				dataMap[key] = []string{} // Initialize with an empty slice
+				dataMap[key] = []string{}
 			}
-
-			// Accumulate all values for the key
+			// Get all values in the key and keep appending , as we keep finding the Day Xs
 			dataMap[key] = append(dataMap[key], value)
 
-			// Track the maximum day and timestamp
 			var maxDay int
 			var maxDayTimestamp string
 
-			// Find the maximum day based on the values
 			for i := 1; i <= 20; i++ {
 				if strings.Contains(value, fmt.Sprintf("Day %d", i)) {
 					if i > maxDay {
@@ -166,9 +157,6 @@ func processChunk(rows [][]string, dataMap map[string][]string) {
 					}
 				}
 			}
-
-			// At this point, all values for this key have been added
-			// Now we append the max day and timestamp at the end
 
 			if maxDay >= 1 {
 				dataMap[key] = append(dataMap[key], fmt.Sprintf("Day %d", maxDay), maxDayTimestamp)
@@ -180,7 +168,7 @@ func processChunk(rows [][]string, dataMap map[string][]string) {
 // processDetails processes email and name data and updates the processedDict
 func processDetails(dataMap map[string][]string) map[string]map[string]string {
 	processedDict := make(map[string]map[string]string)
-	dayRegex := `(?i)Day (\d+)` // Regex pattern for matching Day X
+	dayRegex := `(?i)Day (\d+)` // Regex pattern : Day X
 
 	reDay, errDay := regexp.Compile(dayRegex)
 	if errDay != nil {
@@ -213,7 +201,6 @@ func processDetails(dataMap map[string][]string) map[string]map[string]string {
 				dayNumber, _ := strconv.Atoi(matches[1])
 				if dayNumber > maxDay {
 					maxDay = dayNumber
-					// Ensure the timestamp is only updated if it's available
 					if i+2 < len(values) {
 						maxDayTimestamp = values[i+2]
 					} else {
@@ -394,11 +381,10 @@ func writeMapToCSV(dataMap map[string][]string, writer *csv.Writer) {
 	}
 }
 
-// CleanPhoneNumber ensures the phone number is exactly 10 digits long.
+// CleanPhoneNumber ensures the phone number is exactly 10 digits long
 func CleanPhoneNumber(phoneNumber string) string {
-	phoneNumber = strings.TrimSpace(phoneNumber) // Remove any leading or trailing spaces
+	phoneNumber = strings.TrimSpace(phoneNumber)
 
-	// Remove any non-digit characters and ensure the number is exactly 10 digits long
 	digits := ""
 	for _, r := range phoneNumber {
 		if r >= '0' && r <= '9' {
@@ -445,4 +431,21 @@ func isIrrelevantName(name string) bool {
 		}
 	}
 	return false
+}
+
+func loadingEffect(done chan bool) {
+	spinner := []string{"|", "/", "-", "\\"}
+	ticker := time.NewTicker(100 * time.Millisecond)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-done:
+			fmt.Print("\rDone!          \n")
+			return
+		case <-ticker.C:
+			fmt.Printf("\r%s Loading...", spinner[0])
+			spinner = append(spinner[1:], spinner[0])
+		}
+	}
 }
