@@ -46,7 +46,11 @@ func main() {
 	currentTime := time.Now()
 	// Create the CSV file
 	formattedTime := currentTime.Format("0502150106")
-	csvFileName := fmt.Sprintf("/Users/padmchowdhary/Desktop/BOTDATA_%s.csv", formattedTime)
+	desktopPath1, err1 := getDesktopPath()
+	if err1 != nil {
+		fmt.Println("ERROR MOVING THE FILE TO BACKUP FOLDER")
+	}
+	csvFileName := fmt.Sprintf(filepath.Join(desktopPath1, "BOTDATA_%s.csv"), formattedTime)
 
 	csvFile, err := os.Create(csvFileName)
 	if err != nil {
@@ -74,11 +78,11 @@ func main() {
 		processChunk(rows[i:end], dataMap)
 	}
 
-	writeMapToCSV(dataMap, writer)
+	//writeMapToCSV(dataMap, writer)
 
 	// Process and write map data to CSV
-	//processedDict := process_details(dataMap)
-	//writeProcessedDictToCSV(processedDict, csvFileName)
+	processedDict := processDetails(dataMap)
+	writeProcessedDictToCSV(processedDict, csvFileName)
 
 	// Print execution time
 	duration := time.Since(start)
@@ -121,8 +125,10 @@ func main() {
 
 // processChunk processes a chunk of rows and updates the dataMap
 func processChunk(rows [][]string, dataMap map[string][]string) {
-
 	for _, row := range rows {
+		if len(row) < 21 {
+			continue // Skip rows that don't have enough columns
+		}
 
 		// Get the key from column G (index 6)
 		a1 := CleanPhoneNumber(row[6])
@@ -136,31 +142,49 @@ func processChunk(rows [][]string, dataMap map[string][]string) {
 
 		// Get the value from column U (index 20)
 		value := row[20]
+		timestamp := row[19]
 
 		if key != "" {
+			// Initialize or update the dataMap entry for the key
 			if _, exists := dataMap[key]; !exists {
-				dataMap[key] = []string{value}
-			} else {
-				dataMap[key] = append(dataMap[key], value)
+				dataMap[key] = []string{} // Initialize with an empty slice
+			}
+
+			// Accumulate all values for the key
+			dataMap[key] = append(dataMap[key], value)
+
+			// Track the maximum day and timestamp
+			var maxDay int
+			var maxDayTimestamp string
+
+			// Find the maximum day based on the values
+			for i := 1; i <= 20; i++ {
+				if strings.Contains(value, fmt.Sprintf("Day %d", i)) {
+					if i > maxDay {
+						maxDay = i
+						maxDayTimestamp = timestamp
+					}
+				}
+			}
+
+			// At this point, all values for this key have been added
+			// Now we append the max day and timestamp at the end
+
+			if maxDay >= 1 {
+				dataMap[key] = append(dataMap[key], fmt.Sprintf("Day %d", maxDay), maxDayTimestamp)
 			}
 		}
 	}
 }
 
-// processemail_Swayam processes email data and updates the processedDict
-func process_details(dataMap map[string][]string) map[string]map[string]string {
+// processDetails processes email and name data and updates the processedDict
+func processDetails(dataMap map[string][]string) map[string]map[string]string {
 	processedDict := make(map[string]map[string]string)
-	nameRegex := `(?i)^[A-Z][a-z]*(?:\.[a-z]+)*(?: (?:[a-z]+(?:\.[a-z]+)*)?){0,3}$`
-	emailRegex := `(?i)^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$`
-	reName, errName := regexp.Compile(nameRegex)
-	if errName != nil {
-		fmt.Println("Error compiling name regex:", errName)
-		return processedDict
-	}
+	dayRegex := `(?i)Day (\d+)` // Regex pattern for matching Day X
 
-	reEmail, errEmail := regexp.Compile(emailRegex)
-	if errEmail != nil {
-		fmt.Println("Error compiling email regex:", errEmail)
+	reDay, errDay := regexp.Compile(dayRegex)
+	if errDay != nil {
+		fmt.Println("Error compiling day regex:", errDay)
 		return processedDict
 	}
 
@@ -169,72 +193,82 @@ func process_details(dataMap map[string][]string) map[string]map[string]string {
 			processedDict[key] = make(map[string]string)
 		}
 
-		var indexofemail int // Temporary variable to store the index of email
-		var indexofname int  // Temporary variable to store the index of name
-		indexFound1 := false // Flag to check if the email index was found
-		indexFound2 := false // Flag to check if the name index was found
+		var indexofemail int
+		var indexofname int
+		indexFound1 := false
+		indexFound2 := false
 
-		// Initialize default values
 		panStatus := "NULL"
 		bankStatus := "NULL"
 		certiStatus := "NO"
 		pan_bank_quest := "NO"
 
-		// Check for PAN status
-		for i, value := range values {
-			value = strings.TrimSpace(value) // Clean up whitespace
+		maxDay := 0
+		maxDayTimestamp := "None"
 
-			if strings.Contains(value, "Y_PAN_mar") || strings.Contains(value, "Y_PAN_hin") || strings.Contains(value, "Y_PAN_eng") {
+		for i, value := range values {
+			value = strings.TrimSpace(value)
+
+			if matches := reDay.FindStringSubmatch(value); len(matches) > 1 {
+				dayNumber, _ := strconv.Atoi(matches[1])
+				if dayNumber > maxDay {
+					maxDay = dayNumber
+					// Ensure the timestamp is only updated if it's available
+					if i+2 < len(values) {
+						maxDayTimestamp = values[i+2]
+					} else {
+						maxDayTimestamp = "No timestamp available"
+					}
+				}
+			}
+		}
+
+		// Check for PAN status
+		for _, value := range values {
+			value = strings.TrimSpace(value)
+			if strings.Contains(value, "Y_PAN_mar") || strings.Contains(value, "Y_PAN_hin") || strings.Contains(value, "Y_PAN_eng") || strings.Contains(value, "BUTTON - Text: 1, Payload: Yes - Have Both") || strings.Contains(value, " Payload: Yes - Have Both") {
 				panStatus = "YES"
 				pan_bank_quest = "YES"
 				break
 			}
-			i = i + 1
 		}
 
 		if panStatus != "YES" {
-			for i, value := range values {
+			for _, value := range values {
 				value = strings.TrimSpace(value)
-
-				if strings.Contains(value, "pa_eng") || strings.Contains(value, "pa_mar") || strings.Contains(value, "pa_hin") {
+				if strings.Contains(value, "pa_eng") || strings.Contains(value, "pa_mar") || strings.Contains(value, "pa_hin") || strings.Contains(value, "Payload: Yes - Applied Both") || strings.Contains(value, "BUTTON - Text: 2, Payload: Yes - Applied Both") {
 					panStatus = "APPLIED"
 					pan_bank_quest = "YES"
 					break
 				}
-				i = i + 1
 			}
-
 		}
 
 		if panStatus != "YES" && panStatus != "APPLIED" {
-			for i, value := range values {
+			for _, value := range values {
 				value = strings.TrimSpace(value)
-
-				if strings.Contains(value, "N_PAN_eng") || strings.Contains(value, "N_PAN_mar") || strings.Contains(value, "N_PAN_hin") {
+				if strings.Contains(value, "N_PAN_eng") || strings.Contains(value, "BUTTON - Text: 3, Payload: No - Need Help") || strings.Contains(value, "BUTTON - Text: 2, Payload: No - Need Help") || strings.Contains(value, "Payload: No - Need Help") || strings.Contains(value, "N_PAN_mar") || strings.Contains(value, "N_PAN_hin") {
 					panStatus = "NO"
 					pan_bank_quest = "YES"
 					break
 				} else if strings.Contains(value, "MEDIA_TEMPLATE - abhi_pan_bank_ask") || strings.Contains(value, "abhi_pan_bank_ask") {
 					pan_bank_quest = "YES"
-
 				}
-
-				i = i + 1
-
 			}
 		}
 
 		// Check for bank status
 		for _, value := range values {
 			value = strings.TrimSpace(value)
-
-			if strings.Contains(value, "yihmo_mar") || strings.Contains(value, "yihmo_eng") || strings.Contains(value, "yihmo_hin") {
+			if strings.Contains(value, "yihmo_mar") || strings.Contains(value, "yihmo_eng") || strings.Contains(value, "BUTTON - Text: 1, Payload: Yes - Have Both") || strings.Contains(value, " Payload: Yes - Have Both") || strings.Contains(value, "yihmo_hin") {
 				bankStatus = "YES I DO"
-			} else if strings.Contains(value, "bac_eng") || strings.Contains(value, "bac_mar") || strings.Contains(value, "bac_hin") || strings.Contains(value, "bac2_eng") || strings.Contains(value, "bac2_mar") || strings.Contains(value, "bac2_hin") {
+			} else if strings.Contains(value, "bac_eng") || strings.Contains(value, "bac_mar") || strings.Contains(value, "bac_hin") || strings.Contains(value, "bac2_eng") || strings.Contains(value, "bac2_mar") || strings.Contains(value, "bac2_hin") || strings.Contains(value, "BUTTON - Text: 2, Payload: Yes - Applied Both") || strings.Contains(value, "Payload: Yes - Applied Both") {
 				bankStatus = "CREATEMY"
+			} else if strings.Contains(value, "BUTTON - Text: 2, Payload: No - Need Help") || strings.Contains(value, "BUTTON - Text: 3, Payload: No - Need Help") || strings.Contains(value, "Payload: No - Need Help") {
+				bankStatus = "NO_HELP"
 			}
 
-			if strings.Contains(value, "DOCUMENT-") || strings.Contains(value, "DOCUMENT -") || strings.Contains(value, "DOCUMENT") {
+			if strings.Contains(value, "DOCUMENT-") || strings.Contains(value, "01abc_certificate_broadcast") || strings.Contains(value, "MEDIA_TEMPLATE - 01abc_certificate_broadcast") || strings.Contains(value, "DOCUMENT -") || strings.Contains(value, "DOCUMENT") {
 				certiStatus = "YES"
 			}
 		}
@@ -242,40 +276,20 @@ func process_details(dataMap map[string][]string) map[string]map[string]string {
 		// Check for NAME and EMAIL
 		for j, value := range values {
 			value = strings.TrimSpace(value)
-
-			if strings.Contains(value, "(Please enter your full name)") || strings.Contains(value, "Let's Start With Your Name!â†²(Please Enter Your Full Name)") || strings.Contains(value, "Let's Start With Your Name!") || strings.Contains(value, "Let's Start With Your Name!â†²") {
-				if j+1 < len(values) && reName.MatchString(values[j+1]) && isIrrelevantName(strings.TrimSpace(values[j+1])) == false {
-					indexFound2 = true
+			if strings.Contains(value, "(Please enter your full name)") || strings.Contains(value, "Letâ€™s start with *your full name*â†²") || strings.Contains(value, "Let's Start With Your Name!â†²(Please Enter Your Full Name)") || strings.Contains(value, "Let's Start With Your Name!") || strings.Contains(value, "Let's Start With Your Name!â†²") || value == "Letâ€™s start with *your full name*â†²" || value == "Letâ€™s start with *your name*â†²(Please enter your full name)" || value == "Letâ€™s start with *your full name* for the certificate" || strings.Contains(value, "*your full name*") || value == "To Unlock Your First *100+* Points & Workshop Certificate.â†²Let's Start With Your Name!â†²(Please Enter Your Full Name)" || value == "Let's Start With Your Name!â†²(Please Enter Your Full Name)" {
+				if j+1 < len(values) && !isIrrelevantName(strings.TrimSpace(values[j+1])) {
+					indexFound2 = false
 					indexofname = j
 					processedDict[key]["NAME"] = values[j+1]
-
 				}
-			} else if j+1 < len(values) && reName.MatchString(value) && isIrrelevantName(strings.TrimSpace(values[j+1])) == false {
-				// If regex matches, use the value
-				processedDict[key]["NAME"] = value
-
 			}
 
-			if strings.Contains(value, "Please enter your email id") {
+			if strings.Contains(value, "Please enter your email id") || strings.Contains(value, "ðŸ“¨ Please enter your email id!â†²(This would help us send you resources and learning material!)") || strings.Contains(value, "Please enter your email id!â†²(This would help us send you resources and learning material!)") || strings.Contains(value, "ðŸ“§ Please enter your *email ID*!â†²*(Required for certificate generation)*") || value == "ðŸ“§ Please enter your *email ID*!â†²*(Required for certificate generation)*" || value == "ðŸ“¨ Please enter your email id!â†²(This would help us send you resources and learning material!)" {
 				indexofemail = j
 				indexFound1 = true
-			} else if reEmail.MatchString(value) {
-				// If regex matches, use the value
-				processedDict[key]["Email"] = value
-				processedDict[key]["VALID EMAIL"] = "YES"
-				for _, value := range values {
-					value = strings.TrimSpace(value)
-					if strings.Contains(value, "you've unlocked exclusive access to Swayam Plus!") {
-						processedDict[key]["SWAYAM ACCESS"] = "YES"
-
-					}
-				}
-				//indexFound1 = true
 			}
-
 		}
 
-		// Update PAN and BANK statuses
 		processedDict[key]["PAN"] = panStatus
 		processedDict[key]["BANK"] = bankStatus
 		processedDict[key]["CertiStatus"] = certiStatus
@@ -298,7 +312,7 @@ func process_details(dataMap map[string][]string) map[string]map[string]string {
 				email := values[newIndex]
 				processedDict[key]["Email"] = email
 
-				if check_valid_email(email) {
+				if checkValidEmail(email) {
 					processedDict[key]["VALID EMAIL"] = "YES"
 					processedDict[key]["SWAYAM ACCESS"] = "NO"
 
@@ -316,6 +330,14 @@ func process_details(dataMap map[string][]string) map[string]map[string]string {
 			} else {
 				processedDict[key]["Email"] = "No email found"
 			}
+		}
+
+		if maxDay > 0 {
+			processedDict[key]["MaxDay"] = fmt.Sprintf("Day %d", maxDay)
+			processedDict[key]["MaxDayTimestamp"] = maxDayTimestamp
+		} else {
+			processedDict[key]["MaxDay"] = " "
+			processedDict[key]["MaxDayTimestamp"] = " "
 		}
 	}
 
@@ -337,7 +359,7 @@ func writeProcessedDictToCSV(processedDict map[string]map[string]string, csvFile
 
 	// Check if the file is new or empty and write the header
 	if fileInfo, err := os.Stat(csvFileName); err != nil || fileInfo.Size() == 0 {
-		header := []string{"Key", "Name", "QUESTION ASKED", "PAN", "BANK", "CERTIFICATE", "Email", "VALID EMAIL", "SWAYAM ACCESS"}
+		header := []string{"Key", "Name", "QUESTION ASKED", "PAN", "BANK", "CERTIFICATE", "Email", "VALID EMAIL", "SWAYAM ACCESS", "STAGE", "TIMESTAMP"}
 		if err := writer.Write(header); err != nil {
 			fmt.Println("Error writing header to CSV:", err)
 			return
@@ -346,7 +368,7 @@ func writeProcessedDictToCSV(processedDict map[string]map[string]string, csvFile
 
 	// Write the processed data from processedDict to the CSV file
 	for key, value := range processedDict {
-		csvRow := []string{string(key), value["NAME"], value["PAN_BANK_QUEST"], value["PAN"], value["BANK"], value["CertiStatus"], value["Email"], value["VALID EMAIL"], value["SWAYAM ACCESS"]}
+		csvRow := []string{key, value["NAME"], value["PAN_BANK_QUEST"], value["PAN"], value["BANK"], value["CertiStatus"], value["Email"], value["VALID EMAIL"], value["SWAYAM ACCESS"], value["MaxDay"], value["MaxDayTimestamp"]}
 		if err := writer.Write(csvRow); err != nil {
 			fmt.Println("Error writing row to CSV:", err)
 		}
@@ -355,12 +377,12 @@ func writeProcessedDictToCSV(processedDict map[string]map[string]string, csvFile
 	fmt.Println("Processed data written to the CSV file:", csvFileName)
 }
 
-func check_valid_email(email_str string) bool {
+func checkValidEmail(emailStr string) bool {
 	const emailPattern = `^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$`
 
 	re := regexp.MustCompile(emailPattern)
 
-	return re.MatchString(email_str)
+	return re.MatchString(emailStr)
 }
 
 func writeMapToCSV(dataMap map[string][]string, writer *csv.Writer) {
@@ -376,12 +398,21 @@ func writeMapToCSV(dataMap map[string][]string, writer *csv.Writer) {
 func CleanPhoneNumber(phoneNumber string) string {
 	phoneNumber = strings.TrimSpace(phoneNumber) // Remove any leading or trailing spaces
 
-	for len(phoneNumber) > 10 {
-		phoneNumber = phoneNumber[1:] // Remove the first character
+	// Remove any non-digit characters and ensure the number is exactly 10 digits long
+	digits := ""
+	for _, r := range phoneNumber {
+		if r >= '0' && r <= '9' {
+			digits += string(r)
+		}
 	}
 
-	return phoneNumber
+	if len(digits) > 10 {
+		digits = digits[len(digits)-10:]
+	}
+
+	return digits
 }
+
 func getDesktopPath() (string, error) {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
