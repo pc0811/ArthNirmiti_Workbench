@@ -52,7 +52,6 @@ func main() {
 		fmt.Println("CANT GET DESKTOP PATH")
 	}
 	csvFileName := fmt.Sprintf(filepath.Join(desktopPath1, "BOTDATA_%s.csv"), formattedTime)
-
 	csvFile, err := os.Create(csvFileName)
 	if err != nil {
 		fmt.Println("Error creating CSV file:", err)
@@ -64,6 +63,7 @@ func main() {
 	defer writer.Flush()
 
 	dataMap := make(map[string][]string)
+	errormap := make(map[string][]string)
 
 	chunkSize := 10000
 
@@ -72,14 +72,38 @@ func main() {
 		if end > len(rows) {
 			end = len(rows)
 		}
-		processChunk(rows[i:end], dataMap)
+		processChunk(rows[i:end], dataMap, errormap)
 	}
 
 	//writeMapToCSV(dataMap, writer)   : Uncomment this to test the data , how we are getting the Collated data
 
 	// Process and write map data to CSV
 	processedDict := processDetails(dataMap)
-	writeProcessedDictToCSV(processedDict, csvFileName)
+	doneCertErrorLog := make(chan error)
+	doneProcessedDict := make(chan error)
+
+	// Run writeCertErrorLog in a separate goroutine
+	go func() {
+		err := writeCertErrorLog(errormap, desktopPath1)
+		doneCertErrorLog <- err // Send the result (error or nil) to the channel
+	}()
+
+	// Run writeProcessedDictToCSV in another separate goroutine
+	go func() {
+		err := writeProcessedDictToCSV(processedDict, csvFileName)
+		doneProcessedDict <- err // Send the result (error or nil) to the channel
+	}()
+
+	// Wait for both goroutines to finish
+	err1001 := <-doneCertErrorLog
+	if err1001 != nil {
+		fmt.Println("Error writing CERT_ERROR_LOG:", err1001)
+	}
+
+	err2002 := <-doneProcessedDict
+	if err2002 != nil {
+		fmt.Println("Error writing processed data to CSV:", err2002)
+	}
 
 	// Print execution time
 	duration := time.Since(start)
@@ -118,10 +142,14 @@ func main() {
 	fmt.Println("Files have been moved to:", dateFolder)
 
 	fmt.Println("\n \nTHANK YOU , HAVE A NICE DAY!")
+
+	fmt.Println("\n\nPress Enter to exit...")
+	fmt.Scanln()
 }
 
 // processChunk processes a chunk of rows and updates the dataMap
-func processChunk(rows [][]string, dataMap map[string][]string) {
+func processChunk(rows [][]string, dataMap map[string][]string, errorMap map[string][]string) {
+	//errorMap := make(map[string][]string)
 	for _, row := range rows {
 		if len(row) < 21 {
 			continue
@@ -138,31 +166,40 @@ func processChunk(rows [][]string, dataMap map[string][]string) {
 
 		value := row[20]
 		timestamp := row[19]
+		status := row[15]
+		if status == "DELIVERED" || status == "DELIVERED_TO_HANDSET" {
+			if key != "" {
+				if _, exists := dataMap[key]; !exists {
+					dataMap[key] = []string{}
+				}
+				// Get all values in the key and keep appending , as we keep finding the Day Xs
+				dataMap[key] = append(dataMap[key], value)
 
-		if key != "" {
-			if _, exists := dataMap[key]; !exists {
-				dataMap[key] = []string{}
-			}
-			// Get all values in the key and keep appending , as we keep finding the Day Xs
-			dataMap[key] = append(dataMap[key], value)
+				var maxDay int
+				var maxDayTimestamp string
 
-			var maxDay int
-			var maxDayTimestamp string
-
-			for i := 1; i <= 20; i++ {
-				if strings.Contains(value, fmt.Sprintf("Day %d", i)) {
-					if i > maxDay {
-						maxDay = i
-						maxDayTimestamp = timestamp
+				for i := 1; i <= 20; i++ {
+					if strings.Contains(value, fmt.Sprintf("Day %d", i)) {
+						if i > maxDay {
+							maxDay = i
+							maxDayTimestamp = timestamp
+						}
 					}
 				}
-			}
 
-			if maxDay >= 1 {
-				dataMap[key] = append(dataMap[key], fmt.Sprintf("Day %d", maxDay), maxDayTimestamp)
+				if maxDay >= 1 {
+					dataMap[key] = append(dataMap[key], fmt.Sprintf("Day %d", maxDay), maxDayTimestamp)
+				}
+			}
+		} else {
+			if strings.Contains(value, "DOCUMENT-") || strings.Contains(value, "01abc_certificate_broadcast") || strings.Contains(value, "MEDIA_TEMPLATE - 01abc_certificate_broadcast") || strings.Contains(value, "DOCUMENT -") || strings.Contains(value, "DOCUMENT") {
+				errorMap[key] = append(errorMap[key], status)
+				errorMap[key] = append(errorMap[key], value)
+				errorMap[key] = append(errorMap[key], timestamp)
 			}
 		}
 	}
+	//return errorMap
 }
 
 // processDetails processes email and name data and updates the processedDict
@@ -331,12 +368,11 @@ func processDetails(dataMap map[string][]string) map[string]map[string]string {
 	return processedDict
 }
 
-func writeProcessedDictToCSV(processedDict map[string]map[string]string, csvFileName string) {
+func writeProcessedDictToCSV(processedDict map[string]map[string]string, csvFileName string) error {
 	// Open the existing CSV file to append the new data
 	csvFile, err := os.OpenFile(csvFileName, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0644)
 	if err != nil {
-		fmt.Println("Error opening CSV file:", err)
-		return
+		return fmt.Errorf("error opening CSV file: %v", err)
 	}
 	defer csvFile.Close()
 
@@ -348,20 +384,24 @@ func writeProcessedDictToCSV(processedDict map[string]map[string]string, csvFile
 	if fileInfo, err := os.Stat(csvFileName); err != nil || fileInfo.Size() == 0 {
 		header := []string{"Key", "Name", "QUESTION ASKED", "PAN", "BANK", "CERTIFICATE", "Email", "VALID EMAIL", "SWAYAM ACCESS", "STAGE", "TIMESTAMP"}
 		if err := writer.Write(header); err != nil {
-			fmt.Println("Error writing header to CSV:", err)
-			return
+			return fmt.Errorf("error writing header to CSV: %v", err)
 		}
 	}
 
 	// Write the processed data from processedDict to the CSV file
 	for key, value := range processedDict {
-		csvRow := []string{key, value["NAME"], value["PAN_BANK_QUEST"], value["PAN"], value["BANK"], value["CertiStatus"], value["Email"], value["VALID EMAIL"], value["SWAYAM ACCESS"], value["MaxDay"], value["MaxDayTimestamp"]}
+		csvRow := []string{
+			key, value["NAME"], value["PAN_BANK_QUEST"], value["PAN"], value["BANK"],
+			value["CertiStatus"], value["Email"], value["VALID EMAIL"],
+			value["SWAYAM ACCESS"], value["MaxDay"], value["MaxDayTimestamp"],
+		}
 		if err := writer.Write(csvRow); err != nil {
-			fmt.Println("Error writing row to CSV:", err)
+			return fmt.Errorf("error writing row to CSV: %v", err)
 		}
 	}
 
 	fmt.Println("Processed data written to the CSV file:", csvFileName)
+	return nil
 }
 
 func checkValidEmail(emailStr string) bool {
@@ -448,4 +488,32 @@ func loadingEffect(done chan bool) {
 			spinner = append(spinner[1:], spinner[0])
 		}
 	}
+}
+func writeCertErrorLog(errormap map[string][]string, desktopPath string) error {
+	// Create the CERT_ERROR_LOG.csv file
+	currentTime := time.Now()
+
+	formattedTime := currentTime.Format("0502150106")
+
+	certLogFileName := fmt.Sprintf(filepath.Join(desktopPath, "CERT_ERROR_LOG_%s.csv"), formattedTime)
+	csvFile, err := os.Create(certLogFileName)
+	if err != nil {
+		fmt.Println("Error creating CERT_ERROR_LOG file:", err)
+		return err
+	}
+	defer csvFile.Close()
+
+	writer := csv.NewWriter(csvFile)
+	defer writer.Flush()
+
+	// Write the error log to CSV
+	for key, value := range errormap {
+		row := append([]string{key}, value...)
+		if err := writer.Write(row); err != nil {
+			return err
+		}
+	}
+
+	writer.Flush()
+	return writer.Error()
 }
