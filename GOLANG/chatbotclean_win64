@@ -44,6 +44,7 @@ func main() {
 		fmt.Println("\nError getting rows from sheet:", err)
 		return
 	}
+	f.Close()
 	currentTime := time.Now()
 
 	formattedTime := currentTime.Format("0502150106")
@@ -57,7 +58,6 @@ func main() {
 		fmt.Println("Error creating CSV file:", err)
 		return
 	}
-	defer csvFile.Close()
 
 	writer := csv.NewWriter(csvFile)
 	defer writer.Flush()
@@ -110,6 +110,8 @@ func main() {
 	fmt.Printf("Processing time: %v seconds\n", duration.Seconds())
 	fmt.Printf("FILE IS STORED ON THE DESKTOP NAMED BOTDATA_%s.csv", formattedTime)
 	done <- true
+
+	csvFile.Close()
 
 	desktopPath, err1 := getDesktopPath()
 	if err1 != nil {
