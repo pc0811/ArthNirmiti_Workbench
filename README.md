@@ -1,26 +1,35 @@
-# Choice_DataClean
-Go files for Cleaning Chatbot Data and processing required information
+# Data Processing : ArthNirmiti 
 
-To Build in your PC :
-1) Install Go
-2) After Installation Check Go Version to confirm
-3) go mod init chatbot
-4) Add the chatbotclean_macos.go for MAC and Linux Systems
-5) For Windows add : chatbotclean_win64.go into the folder
-6) go get "github.com/sqweek/dialog" &&  go get "github.com/xuri/excelize/v2" in the Folder Terminal
-7) You are all Set Up!
+## Project Structure
 
+This project consists of two main components:
 
-WORKING PROCESS : 
-This Go program automates data processing and cleaning from an Excel file. The user starts by selecting an Excel file via a dialog. The program then reads data from the specified sheet named "Data", processing it in chunks of 10,000 rows. It creates a CSV file on the desktop with a timestamp for unique identification.
+1. **Golang**: Contains the data cleaning and processing application.
+2. **Apps Script**: Contains Google Apps Script code for additional functionality.
 
-The `processChunk` function cleans phone numbers and organizes data into a map, where keys are phone numbers, and values are slices of strings. It determines the maximum "Day" value and its timestamp for each key. The `processDetails` function refines this data further, extracting and validating email addresses and names, and identifying PAN and bank statuses.
+## Folders
 
-The data is then written to a CSV file. The `loadingEffect` function displays a loading spinner in a separate goroutine while processing is ongoing. Once processing is complete, the Excel and CSV files are moved into a newly created folder named after the current timestamp. The program outputs the processing time and confirms the successful file relocation.
+- `/Golang`: Go language code for the main data processing application.
+- `/AppsScript`: Google Apps Script code for integration with Google Sheets or other Google services.
 
+## Developer Information
 
+**Developer**: Padm Chowdhary 
+**Email**: padmchowdhary17@gmail.com
 
-Potential Improvements :
-1) GoRoutines and Multithreading
-2) Reduce number of Loops for processing final data 
-   
+## Overview
+
+This project combines a powerful Golang application for data cleaning and processing with Google Apps Script for extended functionality. The Golang component handles the main data processing tasks, while the Apps Script code likely provides integration with Google services or additional data manipulation features.
+
+For detailed information about each component:
+
+- See the README in the `/GOLANG` folder for specifics on the data cleaning application.
+- Check the `/AppsScript` folder for documentation on the Google Apps Script functionality.
+
+## Getting Started
+
+1. Clone this repository.
+2. Navigate to the `/GOLANG` folder for the main data processing application.
+3. Refer to the `/AppsScript` folder for any Google Apps Script integration.
+
+For any questions or issues, please contact the developer using the email provided above.
