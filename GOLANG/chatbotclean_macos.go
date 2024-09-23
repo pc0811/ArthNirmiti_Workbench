@@ -75,7 +75,7 @@ func main() {
 		processChunk(rows[i:end], dataMap, errormap)
 	}
 
-	//writeMapToCSV(dataMap, writer)   : Uncomment this to test the data , how we are getting the Collated data
+	//writeMapToCSV(dataMap, writer) // : Uncomment this to test the data , how we are getting the Collated data
 
 	// Process and write map data to CSV
 	processedDict := processDetails(dataMap)
@@ -173,6 +173,7 @@ func processChunk(rows [][]string, dataMap map[string][]string, errorMap map[str
 			if key != "" {
 				if _, exists := dataMap[key]; !exists {
 					dataMap[key] = []string{}
+					dataMap[key] = append(dataMap[key], timestamp)
 				}
 				// Get all values in the key and keep appending , as we keep finding the Day Xs
 				dataMap[key] = append(dataMap[key], value)
@@ -218,6 +219,7 @@ func processDetails(dataMap map[string][]string) map[string]map[string]string {
 	for key, values := range dataMap {
 		if _, exists := processedDict[key]; !exists {
 			processedDict[key] = make(map[string]string)
+			processedDict[key]["INIT"] = values[0]
 		}
 
 		var indexofemail int
@@ -302,7 +304,7 @@ func processDetails(dataMap map[string][]string) map[string]map[string]string {
 		// Check for NAME and EMAIL
 		for j, value := range values {
 			value = strings.TrimSpace(value)
-			if strings.Contains(value, "(Please enter your full name)") || strings.Contains(value, "Letâ€™s start with *your full name*â†²") || strings.Contains(value, "Let's Start With Your Name!â†²(Please Enter Your Full Name)") || strings.Contains(value, "Let's Start With Your Name!") || strings.Contains(value, "Let's Start With Your Name!â†²") || value == "Letâ€™s start with *your full name*â†²" || value == "Letâ€™s start with *your name*â†²(Please enter your full name)" || value == "Letâ€™s start with *your full name* for the certificate" || strings.Contains(value, "*your full name*") || value == "To Unlock Your First *100+* Points & Workshop Certificate.â†²Let's Start With Your Name!â†²(Please Enter Your Full Name)" || value == "Let's Start With Your Name!â†²(Please Enter Your Full Name)" {
+			if strings.Contains(value, "(Please enter your full name)") || strings.Contains(value, "Letâ€™s start with *your full name*â†²") || strings.Contains(value, "Let's Start With Your Name!â†²(Please Enter Your Full Name)") || strings.Contains(value, "Let's Start With Your Name!") || strings.Contains(value, "Let's Start With Your Name!â†²") || value == "Letâ€™s start with *your full name*â†²" || value == "Letâ€™s start with *your name*â†²(Please enter your full name)" || value == "Letâ€™s start with *your full name* for the certificate" || strings.Contains(value, "*your full name*") || value == "To Unlock Your First *100+* Points & Workshop Certificate.â†²Let's Start With Your Name!â†²(Please Enter Your Full Name)" || value == "Let's Start With Your Name!â†²(Please Enter Your Full Name)" || strings.Contains(value, "Let’s start with your full name for the certificate") {
 				if j+1 < len(values) && !isIrrelevantName(strings.TrimSpace(values[j+1])) {
 					indexFound2 = false
 					indexofname = j
@@ -310,9 +312,11 @@ func processDetails(dataMap map[string][]string) map[string]map[string]string {
 				}
 			}
 
-			if strings.Contains(value, "Please enter your email id") || strings.Contains(value, "ðŸ“¨ Please enter your email id!â†²(This would help us send you resources and learning material!)") || strings.Contains(value, "Please enter your email id!â†²(This would help us send you resources and learning material!)") || strings.Contains(value, "ðŸ“§ Please enter your *email ID*!â†²*(Required for certificate generation)*") || value == "ðŸ“§ Please enter your *email ID*!â†²*(Required for certificate generation)*" || value == "ðŸ“¨ Please enter your email id!â†²(This would help us send you resources and learning material!)" {
+			if strings.Contains(value, "Please enter your email id") || strings.Contains(value, "ðŸ“¨ Please enter your email id!â†²(This would help us send you resources and learning material!)") || strings.Contains(value, "Please enter your email id!â†²(This would help us send you resources and learning material!)") || strings.Contains(value, "ðŸ“§ Please enter your *email ID*!â†²*(Required for certificate generation)*") || value == "ðŸ“§ Please enter your *email ID*!â†²*(Required for certificate generation)*" || value == "ðŸ“¨ Please enter your email id!â†²(This would help us send you resources and learning material!)" || strings.Contains(value, "(Required for certificate generation)") || strings.Contains(value, "email") {
 				indexofemail = j
 				indexFound1 = true
+			} else if strings.Contains(value, "you've unlocked exclusive access to Swayam Plus!") {
+				processedDict[key]["SWAYAM ACCESS"] = "YES"
 			}
 		}
 
@@ -336,8 +340,7 @@ func processDetails(dataMap map[string][]string) map[string]map[string]string {
 			newIndex := indexofemail + 1
 			if newIndex < len(values) {
 				email := values[newIndex]
-				processedDict[key]["Email"] = email
-
+				//	processedDict[key]["Email"] = email
 				if checkValidEmail(email) {
 					processedDict[key]["VALID EMAIL"] = "YES"
 					processedDict[key]["SWAYAM ACCESS"] = "NO"
@@ -351,6 +354,7 @@ func processDetails(dataMap map[string][]string) map[string]map[string]string {
 					}
 				} else {
 					processedDict[key]["VALID EMAIL"] = "NO"
+					processedDict[key]["SWAYAM ACCESS"] = "INVALID EMAIL"
 				}
 				processedDict[key]["Index"] = strconv.Itoa(indexofemail)
 			} else {
@@ -384,7 +388,7 @@ func writeProcessedDictToCSV(processedDict map[string]map[string]string, csvFile
 
 	// Check if the file is new or empty and write the header
 	if fileInfo, err := os.Stat(csvFileName); err != nil || fileInfo.Size() == 0 {
-		header := []string{"Key", "Name", "QUESTION ASKED", "PAN", "BANK", "CERTIFICATE", "Email", "VALID EMAIL", "SWAYAM ACCESS", "STAGE", "TIMESTAMP"}
+		header := []string{"Key", "Name", "Bot_Init", "QUESTION ASKED", "PAN", "BANK", "CERTIFICATE", "Email", "VALID EMAIL", "SWAYAM ACCESS", "STAGE", "TIMESTAMP"}
 		if err := writer.Write(header); err != nil {
 			return fmt.Errorf("error writing header to CSV: %v", err)
 		}
@@ -393,7 +397,7 @@ func writeProcessedDictToCSV(processedDict map[string]map[string]string, csvFile
 	// Write the processed data from processedDict to the CSV file
 	for key, value := range processedDict {
 		csvRow := []string{
-			key, value["NAME"], value["PAN_BANK_QUEST"], value["PAN"], value["BANK"],
+			key, value["NAME"], value["INIT"], value["PAN_BANK_QUEST"], value["PAN"], value["BANK"],
 			value["CertiStatus"], value["Email"], value["VALID EMAIL"],
 			value["SWAYAM ACCESS"], value["MaxDay"], value["MaxDayTimestamp"],
 		}
