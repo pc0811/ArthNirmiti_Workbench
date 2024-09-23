@@ -18,7 +18,6 @@ import (
 func main() {
 	fmt.Println("PLEASE SELECT THE FILE")
 
-	// Open the Excel file
 	excelFileName, err := dialog.File().Filter("Excel files", "xlsx").Title("Select an Excel file").Load()
 	if err != nil {
 		fmt.Println("\nError selecting Excel file:", err)
@@ -151,7 +150,6 @@ func main() {
 
 // processChunk processes a chunk of rows and updates the dataMap
 func processChunk(rows [][]string, dataMap map[string][]string, errorMap map[string][]string) {
-	//errorMap := make(map[string][]string)
 	for _, row := range rows {
 		if len(row) < 21 {
 			continue
@@ -216,14 +214,15 @@ func processChunk(rows [][]string, dataMap map[string][]string, errorMap map[str
 			}
 
 		}
+
 	}
-	//return errorMap
 }
 
 // processDetails processes email and name data and updates the processedDict
 func processDetails(dataMap map[string][]string) map[string]map[string]string {
 	processedDict := make(map[string]map[string]string)
-	dayRegex := `(?i)Day (\d+)` // Regex pattern : Day X
+	dayRegex := `(?i)Days?\s*(\d+)` // Regex pattern : Day X
+	//(?i)Day\s*(\d+)|Days\s*(\d+)
 
 	reDay, errDay := regexp.Compile(dayRegex)
 	if errDay != nil {
@@ -257,8 +256,8 @@ func processDetails(dataMap map[string][]string) map[string]map[string]string {
 				dayNumber, _ := strconv.Atoi(matches[1])
 				if dayNumber > maxDay {
 					maxDay = dayNumber
-					if i+2 < len(values) {
-						maxDayTimestamp = values[i+2]
+					if i+1 < len(values) {
+						maxDayTimestamp = values[i+1]
 					} else {
 						maxDayTimestamp = "No timestamp available"
 					}
@@ -545,4 +544,55 @@ func writeCertErrorLog(errormap map[string][]string, desktopPath string) error {
 
 	writer.Flush()
 	return writer.Error()
+}
+func checkStringConditions(input string) string {
+	if strings.Contains(input, "https://youtu.be/byeEQd7EDxA↲Day 1: Power of Compounding!") || strings.Contains(input, "Power of Compounding!") || strings.Contains(input, "TEMPLATE - eng_episode1_template") {
+		return "Day 1"
+	} else if strings.Contains(input, "https://youtube.com/shorts/DCAyuJ0tiJA?feature=share") || strings.Contains(input, "https://youtube.com/shorts/DCAyuJ0tiJA?feature=share↲Day 2:") || strings.Contains(input, "Day 2") || strings.Contains(input, "TEMPLATE - eng_episode2_template") {
+		return "Day 2"
+	} else if strings.Contains(input, "Day 3: Subh Shuruwat! Subh Shuruwat!") || strings.Contains(input, "https://youtube.com/shorts/rlmkppM-hyk↲Day 3: Subh Shuruwat!") || strings.Contains(input, "Subh Shuruwat!") || strings.Contains(input, "TEMPLATE - eng_episode3_template") {
+		return "Day 3"
+	} else if strings.Contains(input, "https://youtube.com/shorts/afF0qzI6iTo↲🎉Day 4:") || strings.Contains(input, "How the Stock Market Works!") || strings.Contains(input, "https://youtube.com/shorts/afF0qzI6iTo↲🎉Day 4: How the Stock Market Works!") || strings.Contains(input, "TEMPLATE - eng_episode4_template") {
+		return "Day 4"
+	} else if strings.Contains(input, "Meet the Stock Market Animals! Bulls, bears, and maybe a unicorn?") || strings.Contains(input, "Day 5:  Meet the Stock Market Animals!") || strings.Contains(input, "how different animals represent unique market") || strings.Contains(input, "TEMPLATE - eng_episode5_template") {
+		return "Day 5"
+	} else if strings.Contains(input, "Fundamental Analysis Bootcamp begins!") || strings.Contains(input, "Day 6: Fundamental Analysis Bootcamp begins!") || strings.Contains(input, "https://youtube.com/shorts/X-oPkhUyJF4") || strings.Contains(input, "TEMPLATE - eng_episode6_template") {
+		return "Day 6"
+	} else if strings.Contains(input, "Day 7: Diving deeper into Fundamentals!") || strings.Contains(input, "https://youtube.com/shorts/duNGUZtODJU↲🎉Day 7: Diving deeper into Fundamentals!") || strings.Contains(input, "We're taking your analysis skills to the next level.") || strings.Contains(input, "TEMPLATE - eng_episode7_template") {
+		return "Day 7"
+	} else if strings.Contains(input, "https://youtube.com/shorts/Fo87EbiUIWM↲Day 8:") || strings.Contains(input, "Day 8:") || strings.Contains(input, "Let's decode those lines") || strings.Contains(input, "TEMPLATE - eng_episode8_template") {
+		return "Day 8"
+	} else if strings.Contains(input, "Day 9: Becoming a Chart Wizard") || strings.Contains(input, "Learn to combine multiple indicators for powerful") || strings.Contains(input, "Day 9") || strings.Contains(input, "TEMPLATE - eng_episode9_template") {
+		return "Day 9"
+	} else if strings.Contains(input, "Day 10:") || strings.Contains(input, "Day 10: FinX Ordering") || strings.Contains(input, "https://youtube.com/shorts/Pnm-UTaShmo↲Day 10: FinX Ordering") || strings.Contains(input, "FinX Ordering") || strings.Contains(input, "TEMPLATE - eng_episode10_template") {
+		return "Day 10"
+	} else if strings.Contains(input, "Day 11: Stock Market Dating") || strings.Contains(input, "Day 11:") || strings.Contains(input, "Stock Market Dating Advice! 💘 Learn when to commit and when to swipe left!") || strings.Contains(input, "TEMPLATE - eng_episode11_template") {
+		return "Day 11"
+	} else if strings.Contains(input, "Day 12: Mutual Funds") || strings.Contains(input, "https://youtube.com/shorts/jFUsuFepogs↲Day 12: Mutual Funds Decoded") || strings.Contains(input, "TEMPLATE - eng_episode12_template") {
+		return "Day 12"
+	} else if strings.Contains(input, "Day 13: Asset Class Variety") || strings.Contains(input, "https://youtube.com/shorts/eQa3j2n03_g↲Day 13: Asset Class Variety") || strings.Contains(input, "Asset Class Variety Show!") || strings.Contains(input, "Asset Class Variety") || strings.Contains(input, "TEMPLATE - eng_episode13_template") {
+		return "Day 13"
+	} else if strings.Contains(input, "https://youtube.com/shorts/cFg-lS3tb6k↲Day 14: Mutual Fund") || strings.Contains(input, "14: Mutual Fund") || strings.Contains(input, "TEMPLATE - eng_episode14_template") {
+		return "Day 14"
+	} else if strings.Contains(input, "Day 15: Basket Case") || strings.Contains(input, "Day 15: Basket Case Study!") || strings.Contains(input, "TEMPLATE - eng_episode15_template") {
+		return "Day 15"
+	} else if strings.Contains(input, "Day 16: Equity Basket") || strings.Contains(input, "Day 16:") || strings.Contains(input, "TEMPLATE - eng_episode16_template") {
+		return "Day 16"
+	} else if strings.Contains(input, "Day 17: REIT") || strings.Contains(input, "in real estate without the heavy") || strings.Contains(input, "TEMPLATE - eng_episode17_template") {
+		return "Day 17"
+	} else if strings.Contains(input, "Day 18: Your Financial") || strings.Contains(input, "18: Your Financial") || strings.Contains(input, "TEMPLATE - eng_episode18_template") {
+		return "Day 18"
+	} else if strings.Contains(input, "Day 19: Insurance Superhero") || strings.Contains(input, "Understand different types of insurance and how they safeguard your financial") || strings.Contains(input, "TEMPLATE - eng_episode19_template") {
+		return "Day 19"
+	} else if strings.Contains(input, "BONUS DAY!! Day 20: Unlock Expert") || strings.Contains(input, "BONUS DAY!! Day 20:") || strings.Contains(input, "TEMPLATE - eng_episode20_template") {
+		return "Day 20"
+	} else if strings.Contains(input, "to think big and manage money like a") || strings.Contains(input, "Short https://youtube.com/shorts/9Bf-Kk-fTU4↲Ready to think big and manage money like a") {
+		return "Day 0"
+	} else if strings.Contains(input, "know that you are dreaming of a thriving career in Banking, Financial") || strings.Contains(input, " know that you are dreaming of a thriving career in Banking, Financial Services, or Insurance") {
+		return "Day 0"
+	} else if strings.Contains(input, "to dodge financial fraud like a") || strings.Contains(input, "yourself with knowledge and learn how to protect yourself from common scams and deceptive") {
+		return "Day 0"
+	} else {
+		return "NONE"
+	}
 }
