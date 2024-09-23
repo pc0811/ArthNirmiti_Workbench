@@ -195,11 +195,26 @@ func processChunk(rows [][]string, dataMap map[string][]string, errorMap map[str
 				}
 			}
 		} else {
-			if strings.Contains(value, "DOCUMENT-") || strings.Contains(value, "01abc_certificate_broadcast") || strings.Contains(value, "MEDIA_TEMPLATE - 01abc_certificate_broadcast") || strings.Contains(value, "DOCUMENT -") || strings.Contains(value, "DOCUMENT") {
+			if strings.Contains(value, "DOCUMENT-") ||
+				strings.Contains(value, "01abc_certificate_broadcast") ||
+				strings.Contains(value, "MEDIA_TEMPLATE") ||
+				strings.Contains(value, "DOCUMENT") {
+				errorMap[key] = append(errorMap[key], status)
+				errorMap[key] = append(errorMap[key], "CERTIFICATE UNDELIVERED/EXPIRED")
+				errorMap[key] = append(errorMap[key], value)
+				errorMap[key] = append(errorMap[key], timestamp)
+			} else if strings.Contains(value, "You will only be added to the One Plus Lucky Draw if you have downloaded the FinX App!") || strings.Contains(value, "https://bit.ly/get-finx") || strings.Contains(value, "You will only be added to the One Plus Lucky Draw if you have downloaded the FinX App! https://bit.ly/get-finx") {
+				errorMap[key] = append(errorMap[key], status)
+				errorMap[key] = append(errorMap[key], "FINX MSG UNDELIVERED/EXPIRED")
+				errorMap[key] = append(errorMap[key], value)
+				errorMap[key] = append(errorMap[key], timestamp)
+			} else {
+				errorMap[key] = append(errorMap[key], "OTHER UNDELIVERED MSGS... ---> ")
 				errorMap[key] = append(errorMap[key], status)
 				errorMap[key] = append(errorMap[key], value)
 				errorMap[key] = append(errorMap[key], timestamp)
 			}
+
 		}
 	}
 	//return errorMap
@@ -234,7 +249,7 @@ func processDetails(dataMap map[string][]string) map[string]map[string]string {
 
 		maxDay := 0
 		maxDayTimestamp := "None"
-
+		FinxMsg := "NO"
 		for i, value := range values {
 			value = strings.TrimSpace(value)
 
@@ -299,6 +314,11 @@ func processDetails(dataMap map[string][]string) map[string]map[string]string {
 			if strings.Contains(value, "DOCUMENT-") || strings.Contains(value, "01abc_certificate_broadcast") || strings.Contains(value, "MEDIA_TEMPLATE - 01abc_certificate_broadcast") || strings.Contains(value, "DOCUMENT -") || strings.Contains(value, "DOCUMENT") {
 				certiStatus = "YES"
 			}
+
+			if strings.Contains(value, "You will only be added to the One Plus Lucky Draw if you have downloaded the FinX App!") || strings.Contains(value, "https://bit.ly/get-finx") || strings.Contains(value, "You will only be added to the One Plus Lucky Draw if you have downloaded the FinX App! https://bit.ly/get-finx") {
+				FinxMsg = "YES"
+			}
+
 		}
 
 		// Check for NAME and EMAIL
@@ -324,6 +344,7 @@ func processDetails(dataMap map[string][]string) map[string]map[string]string {
 		processedDict[key]["BANK"] = bankStatus
 		processedDict[key]["CertiStatus"] = certiStatus
 		processedDict[key]["PAN_BANK_QUEST"] = pan_bank_quest
+		processedDict[key]["FINX"] = FinxMsg
 
 		if indexFound2 {
 			newIndex1 := indexofname + 1
@@ -340,7 +361,7 @@ func processDetails(dataMap map[string][]string) map[string]map[string]string {
 			newIndex := indexofemail + 1
 			if newIndex < len(values) {
 				email := values[newIndex]
-				//	processedDict[key]["Email"] = email
+				processedDict[key]["Email"] = email
 				if checkValidEmail(email) {
 					processedDict[key]["VALID EMAIL"] = "YES"
 					processedDict[key]["SWAYAM ACCESS"] = "NO"
@@ -388,7 +409,7 @@ func writeProcessedDictToCSV(processedDict map[string]map[string]string, csvFile
 
 	// Check if the file is new or empty and write the header
 	if fileInfo, err := os.Stat(csvFileName); err != nil || fileInfo.Size() == 0 {
-		header := []string{"Key", "Name", "Bot_Init", "QUESTION ASKED", "PAN", "BANK", "CERTIFICATE", "Email", "VALID EMAIL", "SWAYAM ACCESS", "STAGE", "TIMESTAMP"}
+		header := []string{"Key", "Name", "Bot_Init", "QUESTION ASKED", "PAN", "BANK", "FINX_Msg", "CERTIFICATE", "Email", "VALID EMAIL", "SWAYAM ACCESS", "STAGE", "TIMESTAMP"}
 		if err := writer.Write(header); err != nil {
 			return fmt.Errorf("error writing header to CSV: %v", err)
 		}
@@ -397,7 +418,7 @@ func writeProcessedDictToCSV(processedDict map[string]map[string]string, csvFile
 	// Write the processed data from processedDict to the CSV file
 	for key, value := range processedDict {
 		csvRow := []string{
-			key, value["NAME"], value["INIT"], value["PAN_BANK_QUEST"], value["PAN"], value["BANK"],
+			key, value["NAME"], value["INIT"], value["PAN_BANK_QUEST"], value["PAN"], value["BANK"], value["FINX"],
 			value["CertiStatus"], value["Email"], value["VALID EMAIL"],
 			value["SWAYAM ACCESS"], value["MaxDay"], value["MaxDayTimestamp"],
 		}
@@ -506,6 +527,8 @@ func writeCertErrorLog(errormap map[string][]string, desktopPath string) error {
 	if err != nil {
 		fmt.Println("Error creating CERT_ERROR_LOG file:", err)
 		return err
+	} else {
+		fmt.Printf("CREATED :  CERT_ERROR_LOG_%s.csv file:", formattedTime)
 	}
 	defer csvFile.Close()
 
