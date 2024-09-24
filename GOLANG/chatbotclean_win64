@@ -155,7 +155,7 @@ func processChunk(rows [][]string, dataMap map[string][]string, errorMap map[str
 			continue
 		}
 
-		a1 := CleanPhoneNumber(row[6])
+		a1 := CleanPhoneNumber(row[6]) 
 		a2 := CleanPhoneNumber(row[7])
 		var key string
 		if a1 == "7977845332" {
