@@ -174,48 +174,39 @@ func processChunk(rows [][]string, dataMap map[string][]string, errorMap map[str
 					dataMap[key] = append(dataMap[key], timestamp)
 				}
 				// Get all values in the key and keep appending , as we keep finding the Day Xs
-				dataMap[key] = append(dataMap[key], value)
+				if checkStringConditions(value) == "NONE" {
+					dataMap[key] = append(dataMap[key], value)
 
-				var maxDay int
-				var maxDayTimestamp string
+				} else {
+					dataMap[key] = append(dataMap[key], checkStringConditions(value), timestamp)
 
-				for i := 1; i <= 20; i++ {
-					if strings.Contains(value, fmt.Sprintf("Day %d", i)) {
-						if i > maxDay {
-							maxDay = i
-							maxDayTimestamp = timestamp
-						}
-					}
 				}
-
-				if maxDay >= 1 {
-					dataMap[key] = append(dataMap[key], fmt.Sprintf("Day %d", maxDay), maxDayTimestamp)
-				}
-			}
-		} else {
-			if strings.Contains(value, "DOCUMENT-") ||
-				strings.Contains(value, "01abc_certificate_broadcast") ||
-				strings.Contains(value, "MEDIA_TEMPLATE") ||
-				strings.Contains(value, "DOCUMENT") {
-				errorMap[key] = append(errorMap[key], status)
-				errorMap[key] = append(errorMap[key], "CERTIFICATE UNDELIVERED/EXPIRED")
-				errorMap[key] = append(errorMap[key], value)
-				errorMap[key] = append(errorMap[key], timestamp)
-			} else if strings.Contains(value, "You will only be added to the One Plus Lucky Draw if you have downloaded the FinX App!") || strings.Contains(value, "https://bit.ly/get-finx") || strings.Contains(value, "You will only be added to the One Plus Lucky Draw if you have downloaded the FinX App! https://bit.ly/get-finx") {
-				errorMap[key] = append(errorMap[key], status)
-				errorMap[key] = append(errorMap[key], "FINX MSG UNDELIVERED/EXPIRED")
-				errorMap[key] = append(errorMap[key], value)
-				errorMap[key] = append(errorMap[key], timestamp)
 			} else {
-				errorMap[key] = append(errorMap[key], "OTHER UNDELIVERED MSGS... ---> ")
-				errorMap[key] = append(errorMap[key], status)
-				errorMap[key] = append(errorMap[key], value)
-				errorMap[key] = append(errorMap[key], timestamp)
+				if strings.Contains(value, "DOCUMENT-") ||
+					strings.Contains(value, "01abc_certificate_broadcast") ||
+					strings.Contains(value, "MEDIA_TEMPLATE") ||
+					strings.Contains(value, "DOCUMENT") {
+					errorMap[key] = append(errorMap[key], status)
+					errorMap[key] = append(errorMap[key], "CERTIFICATE UNDELIVERED/EXPIRED")
+					errorMap[key] = append(errorMap[key], value)
+					errorMap[key] = append(errorMap[key], timestamp)
+				} else if strings.Contains(value, "You will only be added to the One Plus Lucky Draw if you have downloaded the FinX App!") || strings.Contains(value, "https://bit.ly/get-finx") || strings.Contains(value, "You will only be added to the One Plus Lucky Draw if you have downloaded the FinX App! https://bit.ly/get-finx") {
+					errorMap[key] = append(errorMap[key], status)
+					errorMap[key] = append(errorMap[key], "FINX MSG UNDELIVERED/EXPIRED")
+					errorMap[key] = append(errorMap[key], value)
+					errorMap[key] = append(errorMap[key], timestamp)
+				} else {
+					errorMap[key] = append(errorMap[key], "OTHER UNDELIVERED MSGS... ---> ")
+					errorMap[key] = append(errorMap[key], status)
+					errorMap[key] = append(errorMap[key], value)
+					errorMap[key] = append(errorMap[key], timestamp)
+				}
+
 			}
 
 		}
-
 	}
+
 }
 
 // processDetails processes email and name data and updates the processedDict
