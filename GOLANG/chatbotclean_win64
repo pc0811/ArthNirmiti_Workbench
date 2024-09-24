@@ -155,7 +155,7 @@ func processChunk(rows [][]string, dataMap map[string][]string, errorMap map[str
 			continue
 		}
 
-		a1 := CleanPhoneNumber(row[6]) 
+		a1 := CleanPhoneNumber(row[6])
 		a2 := CleanPhoneNumber(row[7])
 		var key string
 		if a1 == "7977845332" {
@@ -187,12 +187,15 @@ func processChunk(rows [][]string, dataMap map[string][]string, errorMap map[str
 			if strings.Contains(value, "DOCUMENT-") ||
 				strings.Contains(value, "01abc_certificate_broadcast") ||
 				strings.Contains(value, "MEDIA_TEMPLATE") ||
-				strings.Contains(value, "DOCUMENT") {
+				strings.Contains(value, "DOCUMENT") || strings.Contains(value, "gidde_certificate") || strings.Contains(value, "aj_certificate_broadcast_template") {
 				errorMap[key] = append(errorMap[key], status)
 				errorMap[key] = append(errorMap[key], "CERTIFICATE UNDELIVERED/EXPIRED")
 				errorMap[key] = append(errorMap[key], value)
 				errorMap[key] = append(errorMap[key], timestamp)
-			} else if strings.Contains(value, "You will only be added to the One Plus Lucky Draw if you have downloaded the FinX App!") || strings.Contains(value, "https://bit.ly/get-finx") || strings.Contains(value, "You will only be added to the One Plus Lucky Draw if you have downloaded the FinX App! https://bit.ly/get-finx") {
+			} else if strings.Contains(value, "inv_acc_intro") || strings.Contains(value, "gfx") || strings.Contains(value, "abhi_last_finx_message") || strings.Contains(value, "abhi_day") || strings.Contains(value, "01abc_finxfomo") || strings.Contains(value, "01ab_finxfomo") ||
+			strings.Contains(value, "You will only be added to the One Plus Lucky Draw if you have downloaded the FinX App!") ||
+			strings.Contains(value, "https://bit.ly/get-finx") || 
+			strings.Contains(value, "You will only be added to the One Plus Lucky Draw if you have downloaded the FinX App! https://bit.ly/get-finx") {
 				errorMap[key] = append(errorMap[key], status)
 				errorMap[key] = append(errorMap[key], "FINX MSG UNDELIVERED/EXPIRED")
 				errorMap[key] = append(errorMap[key], value)
@@ -301,11 +304,11 @@ func processDetails(dataMap map[string][]string) map[string]map[string]string {
 				bankStatus = "NO_HELP"
 			}
 
-			if strings.Contains(value, "DOCUMENT-") || strings.Contains(value, "01abc_certificate_broadcast") || strings.Contains(value, "MEDIA_TEMPLATE - 01abc_certificate_broadcast") || strings.Contains(value, "DOCUMENT -") || strings.Contains(value, "DOCUMENT") {
+			if strings.Contains(value, "gidde_certificate") || strings.Contains(value, "aj_certificate_broadcast_template") || strings.Contains(value, "DOCUMENT-") || strings.Contains(value, "01abc_certificate_broadcast") || strings.Contains(value, "MEDIA_TEMPLATE - 01abc_certificate_broadcast") || strings.Contains(value, "DOCUMENT -") || strings.Contains(value, "DOCUMENT") {
 				certiStatus = "YES"
 			}
 
-			if strings.Contains(value, "You will only be added to the One Plus Lucky Draw if you have downloaded the FinX App!") || strings.Contains(value, "https://bit.ly/get-finx") || strings.Contains(value, "You will only be added to the One Plus Lucky Draw if you have downloaded the FinX App! https://bit.ly/get-finx") {
+			if strings.Contains(value, "inv_acc_intro") || strings.Contains(value, "gfx") || strings.Contains(value, "abhi_last_finx_message") || strings.Contains(value, "abhi_day") || strings.Contains(value, "01abc_finxfomo") || strings.Contains(value, "01ab_finxfomo") || strings.Contains(value, "You will only be added to the One Plus Lucky Draw if you have downloaded the FinX App!") || strings.Contains(value, "https://bit.ly/get-finx") || strings.Contains(value, "You will only be added to the One Plus Lucky Draw if you have downloaded the FinX App! https://bit.ly/get-finx") {
 				FinxMsg = "YES"
 			}
 
