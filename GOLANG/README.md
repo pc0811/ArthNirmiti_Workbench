@@ -59,7 +59,12 @@ This application is a sophisticated data processing tool designed to clean and a
    ```
    - Key: Phone number
    - Value: Map of string keys to string values, containing processed user data
-
+4. **Error Vs Delivery Map**: 
+   ```go
+   dwerrcount := make(map[string][]string)
+   ```
+   - Key: TimeStamp 
+   - Value: Count of Error and Delivery Messages for that Day
 4. **Excel Rows**:
    ```go
    rows [][]string
@@ -97,6 +102,7 @@ This application is a sophisticated data processing tool designed to clean and a
    - Uses goroutines to concurrently write:
      a) Certificate error log (`writeCertErrorLog()`)
      b) Processed data to CSV (`writeProcessedDictToCSV()`)
+     c) Error Vs Delivery Messages Writing (`writeCertErrorLog()`)
 
 8. **File Organization**:
    - Creates a timestamped folder on the desktop.
@@ -144,7 +150,9 @@ This application is a sophisticated data processing tool designed to clean and a
 - Uses goroutines for concurrent processing of:
   1. Writing the main CSV file
   2. Writing the error log CSV file
+  3. Writing Error Vs Delivery Logs File
 - Implements a loading animation in a separate goroutine for user feedback.
+- Implementation of sync.Waitgroup to sync all the GoRoutines and wait till all finish
 
 ## User Interface
 
