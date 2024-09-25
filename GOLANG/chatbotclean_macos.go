@@ -17,8 +17,8 @@ import (
 )
 
 func main() {
-	runtime.GOMAXPROCS(runtime.NumCPU())
-	fmt.Println("PLEASE SELECT THE FILE")
+	runtime.GOMAXPROCS(runtime.NumCPU // Max Multiprocessing
+	fmt.Println("PLEASE SELECT THE FILE") 
 
 	excelFileName, err := dialog.File().Filter("Excel files", "xlsx").Title("Select an Excel file").Load()
 	if err != nil {
@@ -67,7 +67,7 @@ func main() {
 	errormap := make(map[string][]string)
 	dwerrcount := make(map[string][]string)
 
-	chunkSize := 10000
+	chunkSize := 10000 // set chunk size as per preference and performance handling capability 
 
 	for i := 0; i < len(rows); i += chunkSize {
 		end := i + chunkSize
@@ -127,7 +127,7 @@ func main() {
 		}
 	}()
 
-	wg.Add(1) // Add one for the processed dictionary CSV writing
+	wg.Add(1) // Add one for  processed dictionary 
 	go func() {
 		defer wg.Done()
 		err := writeProcessedDictToCSV(processedDict, csvFileName)
@@ -139,7 +139,6 @@ func main() {
 	// Wait for all goroutines to finish
 	wg.Wait()
 
-	// Print execution time
 	duration := time.Since(start)
 	fmt.Printf("Processing time: %v seconds\n", duration.Seconds())
 	fmt.Printf("FILE IS STORED ON THE DESKTOP NAMED BOTDATA_%s.csv", formattedTime)
