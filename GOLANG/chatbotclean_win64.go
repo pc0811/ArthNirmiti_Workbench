@@ -9,6 +9,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/sqweek/dialog"
@@ -16,6 +17,7 @@ import (
 )
 
 func main() {
+	runtime.GOMAXPROCS(runtime.NumCPU())
 	fmt.Println("PLEASE SELECT THE FILE")
 
 	excelFileName, err := dialog.File().Filter("Excel files", "xlsx").Title("Select an Excel file").Load()
@@ -63,6 +65,7 @@ func main() {
 
 	dataMap := make(map[string][]string)
 	errormap := make(map[string][]string)
+	dwerrcount := make(map[string][]string)
 
 	chunkSize := 10000
 
@@ -71,46 +74,12 @@ func main() {
 		if end > len(rows) {
 			end = len(rows)
 		}
-		processChunk(rows[i:end], dataMap, errormap)
+		processChunk(rows[i:end], dataMap, errormap, dwerrcount)
 	}
 
-	//writeMapToCSV(dataMap, writer) // : Uncomment this to test the data , how we are getting the Collated data
-
-	// Process and write map data to CSV
 	processedDict := processDetails(dataMap)
-	doneCertErrorLog := make(chan error)
-	doneProcessedDict := make(chan error)
 
-	// Run writeCertErrorLog in a separate goroutine
-	go func() {
-		err := writeCertErrorLog(errormap, desktopPath1)
-		doneCertErrorLog <- err // Send the result (error or nil) to the channel
-	}()
-
-	// Run writeProcessedDictToCSV in another separate goroutine
-	go func() {
-		err := writeProcessedDictToCSV(processedDict, csvFileName)
-		doneProcessedDict <- err // Send the result (error or nil) to the channel
-	}()
-
-	// Wait for both goroutines to finish
-	err1001 := <-doneCertErrorLog
-	if err1001 != nil {
-		fmt.Println("Error writing CERT_ERROR_LOG:", err1001)
-	}
-
-	err2002 := <-doneProcessedDict
-	if err2002 != nil {
-		fmt.Println("Error writing processed data to CSV:", err2002)
-	}
-
-	// Print execution time
-	duration := time.Since(start)
-	fmt.Printf("Processing time: %v seconds\n", duration.Seconds())
-	fmt.Printf("FILE IS STORED ON THE DESKTOP NAMED BOTDATA_%s.csv", formattedTime)
-	done <- true
-
-	csvFile.Close()
+	var wg sync.WaitGroup // Use WaitGroup to wait for goroutines
 
 	desktopPath, err1 := getDesktopPath()
 	if err1 != nil {
@@ -127,6 +96,56 @@ func main() {
 		destPath := filepath.Join(destDir, filepath.Base(sourcePath))
 		return os.Rename(sourcePath, destPath)
 	}
+
+	wg.Add(2) // Add two for the log file goroutines
+
+	go func() {
+		defer wg.Done()
+		logFilePath, err := writeCertErrorLog(dwerrcount, desktopPath1, "Error_VS_Dely")
+		if err != nil {
+			fmt.Println("Error writing Error_VS_Dely log:", err)
+			return
+		}
+
+		err = moveFile(logFilePath, dateFolder)
+		if err != nil {
+			fmt.Println("Error moving Error_VS_Dely log file to date folder:", err)
+		}
+	}()
+
+	go func() {
+		defer wg.Done()
+		certfile, err := writeCertErrorLog(errormap, desktopPath1, "ERROR_LOG")
+		if err != nil {
+			fmt.Println("Error writing ERROR_LOG:", err)
+			return
+		}
+
+		err = moveFile(certfile, dateFolder)
+		if err != nil {
+			fmt.Println("Error moving ERROR_LOG file to date folder:", err)
+		}
+	}()
+
+	wg.Add(1) // Add one for the processed dictionary CSV writing
+	go func() {
+		defer wg.Done()
+		err := writeProcessedDictToCSV(processedDict, csvFileName)
+		if err != nil {
+			fmt.Println("Error writing processed data to CSV:", err)
+		}
+	}()
+
+	// Wait for all goroutines to finish
+	wg.Wait()
+
+	// Print execution time
+	duration := time.Since(start)
+	fmt.Printf("Processing time: %v seconds\n", duration.Seconds())
+	fmt.Printf("FILE IS STORED ON THE DESKTOP NAMED BOTDATA_%s.csv", formattedTime)
+	done <- true
+
+	csvFile.Close()
 
 	err = moveFile(excelFileName, dateFolder)
 	if err != nil {
@@ -149,7 +168,7 @@ func main() {
 }
 
 // processChunk processes a chunk of rows and updates the dataMap
-func processChunk(rows [][]string, dataMap map[string][]string, errorMap map[string][]string) {
+func processChunk(rows [][]string, dataMap map[string][]string, errorMap map[string][]string, dwErrCount map[string][]string) {
 	for _, row := range rows {
 		if len(row) < 21 {
 			continue
@@ -179,7 +198,22 @@ func processChunk(rows [][]string, dataMap map[string][]string, errorMap map[str
 
 				} else {
 					dataMap[key] = append(dataMap[key], checkStringConditions(value), timestamp)
+				}
 
+				timestamp_key := ""
+				if len(timestamp) >= 10 { // Check if timestamp is long enough
+					timestamp_key = timestamp[:10]
+				}
+				if _, exists := dwErrCount[timestamp_key]; !exists {
+					// Initialize with count = 0 and second value = 1
+					dwErrCount[timestamp_key] = []string{"0", "1"}
+				} else {
+					// Increment the second value (errorMap[timestamp_key][1])
+					secondVal, err := strconv.Atoi(dwErrCount[timestamp_key][1])
+					if err == nil {
+						secondVal++
+						dwErrCount[timestamp_key][1] = fmt.Sprintf("%d", secondVal) // Update second value
+					}
 				}
 			}
 
@@ -193,9 +227,9 @@ func processChunk(rows [][]string, dataMap map[string][]string, errorMap map[str
 				errorMap[key] = append(errorMap[key], value)
 				errorMap[key] = append(errorMap[key], timestamp)
 			} else if strings.Contains(value, "inv_acc_intro") || strings.Contains(value, "gfx") || strings.Contains(value, "abhi_last_finx_message") || strings.Contains(value, "abhi_day") || strings.Contains(value, "01abc_finxfomo") || strings.Contains(value, "01ab_finxfomo") ||
-			strings.Contains(value, "You will only be added to the One Plus Lucky Draw if you have downloaded the FinX App!") ||
-			strings.Contains(value, "https://bit.ly/get-finx") || 
-			strings.Contains(value, "You will only be added to the One Plus Lucky Draw if you have downloaded the FinX App! https://bit.ly/get-finx") {
+				strings.Contains(value, "You will only be added to the One Plus Lucky Draw if you have downloaded the FinX App!") ||
+				strings.Contains(value, "https://bit.ly/get-finx") ||
+				strings.Contains(value, "You will only be added to the One Plus Lucky Draw if you have downloaded the FinX App! https://bit.ly/get-finx") {
 				errorMap[key] = append(errorMap[key], status)
 				errorMap[key] = append(errorMap[key], "FINX MSG UNDELIVERED/EXPIRED")
 				errorMap[key] = append(errorMap[key], value)
@@ -205,6 +239,23 @@ func processChunk(rows [][]string, dataMap map[string][]string, errorMap map[str
 				errorMap[key] = append(errorMap[key], status)
 				errorMap[key] = append(errorMap[key], value)
 				errorMap[key] = append(errorMap[key], timestamp)
+			}
+
+			timestamp_key := ""
+			if len(timestamp) >= 10 { // Check if timestamp is long enough
+				timestamp_key = timestamp[:10]
+			}
+
+			if _, exists := dwErrCount[timestamp_key]; !exists {
+				// Initialize the count with "1" and set the second value to "0"
+				dwErrCount[timestamp_key] = []string{"1", "0"}
+			} else {
+				count, err := strconv.Atoi(dwErrCount[timestamp_key][0]) // strconv ATOI : converting String to Integer
+				if err == nil {
+					count++
+					dwErrCount[timestamp_key][0] = fmt.Sprintf("%d", count) // Update count
+				}
+
 			}
 
 		}
@@ -509,19 +560,19 @@ func loadingEffect(done chan bool) {
 		}
 	}
 }
-func writeCertErrorLog(errormap map[string][]string, desktopPath string) error {
-	// Create the CERT_ERROR_LOG.csv file
+func writeCertErrorLog(errormap map[string][]string, desktopPath string, filename string) (string, error) {
+	// Create the CERT_ERROR_LOG file with a timestamp
 	currentTime := time.Now()
+	formattedTime := currentTime.Format("0502150106") // Format the timestamp as needed
 
-	formattedTime := currentTime.Format("0502150106")
-
-	certLogFileName := fmt.Sprintf(filepath.Join(desktopPath, "CERT_ERROR_LOG_%s.csv"), formattedTime)
+	// Combine the filename with the timestamp
+	certLogFileName := filepath.Join(desktopPath, fmt.Sprintf("%s_%s.csv", filename, formattedTime))
 	csvFile, err := os.Create(certLogFileName)
 	if err != nil {
 		fmt.Println("Error creating CERT_ERROR_LOG file:", err)
-		return err
+		return "", err
 	} else {
-		fmt.Printf("CREATED :  CERT_ERROR_LOG_%s.csv file:", formattedTime)
+		fmt.Printf("CREATED: %s file\n", certLogFileName) // Log the full filename
 	}
 	defer csvFile.Close()
 
@@ -532,13 +583,14 @@ func writeCertErrorLog(errormap map[string][]string, desktopPath string) error {
 	for key, value := range errormap {
 		row := append([]string{key}, value...)
 		if err := writer.Write(row); err != nil {
-			return err
+			return "", err
 		}
 	}
 
 	writer.Flush()
-	return writer.Error()
+	return certLogFileName, writer.Error()
 }
+
 func checkStringConditions(input string) string {
 	if strings.Contains(input, "https://youtu.be/byeEQd7EDxA↲Day 1: Power of Compounding!") || strings.Contains(input, "Power of Compounding!") || strings.Contains(input, "TEMPLATE - eng_episode1_template") {
 		return "Day 1"
