@@ -1,4 +1,4 @@
-# Data Processing : ArthNirmiti 
+# Data Processing : Choice <-> ArthNirmiti 
 
 ## Project Structure
 
